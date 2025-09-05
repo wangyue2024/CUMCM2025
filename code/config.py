@@ -13,7 +13,7 @@ class Config:
     CYLINDER_CENTER_XY = np.array([0.0, 200.0])
     CYLINDER_RADIUS = 7.0
     CYLINDER_HEIGHT = 10.0
-    CYLINDER_SAMPLE_POINTS_EDGE = 20 # 圆柱体边缘采样点数量
+    CYLINDER_SAMPLE_POINTS_EDGE = 8 # 圆柱体边缘采样点数量
 
     # --- 导弹信息 ---
     V_MISSILE = 300.0  # 导弹速度 (m/s)
@@ -41,9 +41,9 @@ class Config:
     MIN_LAUNCH_INTERVAL = 1.0 # 最小投放间隔 (s)
 
     # --- 模拟与优化控制参数 ---
-    SIMULATION_TIME_STEP = 0.001 # 模拟时间步长 (s)
+    SIMULATION_TIME_STEP = 0.01 # 模拟时间步长 (s)
 
     # **新增**: 奖励塑造惩罚系数
     # 当遮蔽时间为0时，cost = PENALTY_FACTOR * min_miss_distance
     # 这个值需要调试，通常是一个小的正数，确保惩罚值不会太大
-    REWARD_SHAPING_PENALTY_FACTOR = 0.001 
+    REWARD_SHAPING_PENALTY_FACTOR = 0.00001 
