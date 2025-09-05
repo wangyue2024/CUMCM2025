@@ -278,8 +278,15 @@ class PhysicsModelWithCylinder:
         # 组合成本：主成本 + 一个加权的辅助成本
         # 权重因子非常重要，要确保辅助目标不会压倒主目标
         # 这里的权重因子需要调试，0.0001是一个不错的起点
+<<<<<<< HEAD
         penalty_factor = 1
         total_cost = primary_cost + penalty_factor * secondary_cost
         if not (t2 >= t1 + self.config.MIN_LAUNCH_INTERVAL and t3 >= t2 + self.config.MIN_LAUNCH_INTERVAL):
             total_cost=total_cost+100*max(0,t1-t2+self.config.MIN_LAUNCH_INTERVAL)+100*max(0,t2-t3+self.config.MIN_LAUNCH_INTERVAL)
+=======
+        penalty_factor = 0.1
+        total_cost = primary_cost + penalty_factor * secondary_cost
+        if not (t2 >= t1 + self.config.MIN_LAUNCH_INTERVAL and t3 >= t2 + self.config.MIN_LAUNCH_INTERVAL):
+            total_cost=total_cost+10*(t1-t2)
+>>>>>>> d615a51a16eb47baebf99a029da5bc42834cd9c4
         return total_cost, total_shielding_time

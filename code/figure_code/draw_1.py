@@ -62,6 +62,11 @@ if __name__ == '__main__':
     # --- 3. Setup the 3D Plot ---
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
+    
+    # !!! 将字体大小设置放在这里，并且可以尝试更大的值 !!!
+    FONT_SIZE = 15 # 调大这个值
+    plt.rcParams.update({'font.size': FONT_SIZE}) 
+
     fig = plt.figure(figsize=(16, 12))
     ax = fig.add_subplot(111, projection='3d')
 
@@ -71,13 +76,15 @@ if __name__ == '__main__':
     ax.scatter(p_uav_at_detonation[0], p_uav_at_detonation[1], p_uav_at_detonation[2], 
                c='red', marker='o', s=80, label='无人机 (爆炸时刻)')
     ax.text(p_uav_at_detonation[0], p_uav_at_detonation[1], p_uav_at_detonation[2] + 100, 
-            f'FY1\n({p_uav_at_detonation[0]:.0f}, {p_uav_at_detonation[1]:.0f}, {p_uav_at_detonation[2]:.0f})', color='red')
+            f'FY1\n({p_uav_at_detonation[0]:.0f}, {p_uav_at_detonation[1]:.0f}, {p_uav_at_detonation[2]:.0f})', 
+            color='red', fontsize=FONT_SIZE) # 单独设置text字体
 
     # 3. Plot Missile at detonation time (Blue dot)
     ax.scatter(p_missile_at_detonation[0], p_missile_at_detonation[1], p_missile_at_detonation[2], 
                c='blue', marker='^', s=80, label='导弹 (爆炸时刻)')
     ax.text(p_missile_at_detonation[0], p_missile_at_detonation[1], p_missile_at_detonation[2] + 100, 
-            f'M1\n({p_missile_at_detonation[0]:.0f}, {p_missile_at_detonation[1]:.0f}, {p_missile_at_detonation[2]:.0f})', color='blue')
+            f'M1\n({p_missile_at_detonation[0]:.0f}, {p_missile_at_detonation[1]:.0f}, {p_missile_at_detonation[2]:.0f})', 
+            color='blue', fontsize=FONT_SIZE) # 单独设置text字体
 
     # 4. Plot True Target (Green Cylinder)
     z = np.linspace(0, cfg.CYLINDER_HEIGHT, 50)
@@ -91,7 +98,7 @@ if __name__ == '__main__':
     ax.scatter(cfg.P_FALSE_TARGET[0], cfg.P_FALSE_TARGET[1], cfg.P_FALSE_TARGET[2], 
                c='black', marker='X', s=150, label='假目标')
     ax.text(cfg.P_FALSE_TARGET[0] + 500, cfg.P_FALSE_TARGET[1], cfg.P_FALSE_TARGET[2], 
-            '假目标 (0,0,0)', color='black')
+            '假目标 (0,0,0)', color='black', fontsize=FONT_SIZE) # 单独设置text字体
 
     # 6. Plot Missile Trajectory (Blue dashed line)
     ax.plot([p_missile_0[0], cfg.P_FALSE_TARGET[0]], 
@@ -112,15 +119,20 @@ if __name__ == '__main__':
     y = cfg.R_SMOKE * np.outer(np.sin(u), np.sin(v)) + p_detonation[1]
     z = cfg.R_SMOKE * np.outer(np.ones(np.size(u)), np.cos(v)) + p_detonation[2]
     ax.plot_surface(x, y, z, color='gray', alpha=0.4, label='烟幕云 (爆炸瞬间)')
-    ax.text(p_detonation[0], p_detonation[1], p_detonation[2], '烟幕', color='dimgray')
+    ax.text(p_detonation[0], p_detonation[1], p_detonation[2], '烟幕', color='dimgray', fontsize=FONT_SIZE) # 单独设置text字体
 
 
     # --- 5. Finalize and Show Plot ---
-    ax.set_xlabel('X 轴 (米)')
-    ax.set_ylabel('Y 轴 (米)')
-    ax.set_zlabel('Z 轴 (米)')
-    ax.set_title(f'问题一 (t={t_detonation:.1f}s 爆炸瞬间)', fontsize=16)
+    ax.set_xlabel('X 轴 (米)', fontsize=FONT_SIZE) # 单独设置轴标签字体
+    ax.set_ylabel('Y 轴 (米)', fontsize=FONT_SIZE) # 单独设置轴标签字体
+    ax.set_zlabel('Z 轴 (米)', fontsize=FONT_SIZE) # 单独设置轴标签字体
+    ax.set_title(f'问题一 (t={t_detonation:.1f}s 爆炸瞬间)', fontsize=FONT_SIZE+4) # 单独设置标题字体
     
+    # 设置刻度标签字体
+    ax.tick_params(axis='x', labelsize=FONT_SIZE * 0.8) # 刻度标签可以稍微小一点
+    ax.tick_params(axis='y', labelsize=FONT_SIZE * 0.8)
+    ax.tick_params(axis='z', labelsize=FONT_SIZE * 0.8)
+
     # Set axis limits to show all relevant objects
     ax.set_xlim([0, 21000])
     ax.set_ylim([-1000, 1000])
@@ -138,7 +150,8 @@ if __name__ == '__main__':
         Line2D([0], [0], linestyle='--', color='r', label='无人机轨迹'),
         Line2D([0], [0], linestyle='--', color='b', label='导弹轨迹')
     ]
-    ax.legend(handles=legend_elements, loc='upper left')
+    ax.legend(handles=legend_elements, loc='upper left', fontsize=FONT_SIZE) # 设置图例字体
+    
 
     ax.view_init(elev=20, azim=-75)
     plt.show()

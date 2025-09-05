@@ -131,6 +131,7 @@ def solve_problem_3():
     cfg = Config()
     model = PhysicsModelWithCylinder(missile_id='M1', uav_id='FY1', config_obj=cfg)
     
+<<<<<<< HEAD
     # 1. 定义真实物理边界
     real_bounds = np.array([
         [cfg.V_UAV_MIN, 0, 0, 0, 0, 0,0, 0],
@@ -158,6 +159,10 @@ def solve_problem_3():
     # 5. 设置优化器
     sigma0_normalized = 0.2
     options = {'bounds': [0, 1], 'maxfevals': 5000, 'seed': 42}
+=======
+    initial_guess = [100, np.pi, 0.0, 1.1, 2.2, 0.0, 1.0, 1.0]
+    sigma0 = 200.0
+>>>>>>> d615a51a16eb47baebf99a029da5bc42834cd9c4
     
     print(f"导弹预计撞击时间: {model.time_to_impact:.2f} s. 8维归一化优化搜索已启动...")
     
