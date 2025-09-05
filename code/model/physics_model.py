@@ -29,26 +29,7 @@ class PhysicsModel:
         return self.p_missile_0 + self.v_vec_missile * t
 
     @staticmethod
-    def _distance_point_to_segment(point, seg_start, seg_end):
-        """Calculates the minimum distance from a point to a line segment."""
-        if np.array_equal(seg_start, seg_end):
-            return np.linalg.norm(point - seg_start)
-        
-        vec_seg = seg_end - seg_start
-        vec_point = point - seg_start
-        
-        dot_product = np.dot(vec_point, vec_seg)
-        seg_len_sq = np.dot(vec_seg, vec_seg)
-        
-        c = dot_product / seg_len_sq
-        
-        if c < 0:
-            return np.linalg.norm(point - seg_start)
-        if c > 1:
-            return np.linalg.norm(point - seg_end)
-        
-        projection = seg_start + c * vec_seg
-        return np.linalg.norm(point - projection)
+
 
     def calculate_shielding_time(self, uav_speed, uav_theta, launch_times, det_delays):
         """
