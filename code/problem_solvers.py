@@ -2,7 +2,7 @@
 
 import cma
 import numpy as np
-from models.physics_model import PhysicsModelWithCylinder
+from model.physics_model import PhysicsModelWithCylinder
 import config
 
 def solve_problem_2():
