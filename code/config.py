@@ -1,33 +1,40 @@
 # config.py
+# This file stores all constants and initial conditions for the simulation.
+
 import numpy as np
 
-# --- 物理常量 ---
-G = 9.81  # 重力加速度 (m/s^2)
+# --- Physical Constants ---
+G = 9.8  # Gravitational acceleration (m/s^2)
 
-# --- 场景参数 ---
-# 目标位置
-P_FALSE_TARGET = np.array([0, 0, 0])
-P_TRUE_TARGET = np.array([0, 200, 0])
+# --- Target Information ---
+P_FALSE_TARGET = np.array([0.0, 0.0, 0.0])
+P_TRUE_TARGET = np.array([0.0, 200.0, 0.0])
 
-# 导弹初始位置 (M1, M2, M3)
+# --- Missile Information ---
+V_MISSILE = 300.0  # Missile speed (m/s)
 MISSILE_INITIAL_POS = {
-    'M1': np.array([20000, 0, 2000]),
-    'M2': np.array([19000, 600, 2100]),
-    'M3': np.array([18000, -600, 1900])
+    'M1': np.array([20000.0, 0.0, 2000.0]),
+    'M2': np.array([19000.0, 600.0, 2100.0]),
+    'M3': np.array([18000.0, -600.0, 1900.0])
 }
-MISSILE_VELOCITY = 300.0  # m/s
 
-# 无人机初始位置 (FY1 to FY5)
+# --- UAV (Drone) Information ---
+V_UAV_MIN = 70.0   # Minimum UAV speed (m/s)
+V_UAV_MAX = 140.0  # Maximum UAV speed (m/s)
 UAV_INITIAL_POS = {
-    'FY1': np.array([17800, 0, 1800]),
-    'FY2': np.array([12000, 1400, 1400]),
-    'FY3': np.array([6000, -3000, 700]),
-    'FY4': np.array([11000, 2000, 1800]),
-    'FY5': np.array([13000, -2000, 1300])
+    'FY1': np.array([17800.0, 0.0, 1800.0]),
+    'FY2': np.array([12000.0, 1400.0, 1400.0]),
+    'FY3': np.array([6000.0, -3000.0, 700.0]),
+    'FY4': np.array([11000.0, 2000.0, 1800.0]),
+    'FY5': np.array([13000.0, -2000.0, 1300.0])
 }
-UAV_VELOCITY_RANGE = [70.0, 140.0]
 
-# 烟幕参数
-SMOKE_EFFECTIVE_RADIUS = 10.0  # m
-SMOKE_EFFECTIVE_DURATION = 20.0  # s
-SMOKE_SINK_VELOCITY = 3.0 # m/s
+# --- Smoke Grenade Information ---
+R_SMOKE = 10.0            # Effective radius of the smoke cloud (m)
+T_SMOKE_EFFECTIVE = 20.0  # Effective duration of the smoke cloud (s)
+V_SMOKE_SINK = 3.0        # Sinking speed of the smoke cloud (m/s)
+MIN_LAUNCH_INTERVAL = 1.0 # Minimum interval between two launches (s)
+
+# --- Simulation Parameters ---
+SIMULATION_TIME_STEP = 0.001 # Time step for discrete simulation (s)
+SIMULATION_TIME = 100.0    # Total simulation time (s)
