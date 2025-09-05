@@ -30,8 +30,14 @@ def main():
     # visualization.plot_3d_scenario(results_p2['details'], "问题二：最优策略场景")
     # visualization.plot_convergence(results_p2['log'], "问题二：优化收敛曲线")
 
-    # --- 问题 3 (待实现) ---
-    # results_p3 = problem_solvers.solve_problem_3()
+    # --- 问题 3 ---
+    start_time = time.time()
+    results_p3 = problem_solvers.solve_problem_3()
+    end_time = time.time()
+    print(f"问题 3 求解耗时: {end_time - start_time:.2f} 秒")
+    # 可视化问题3的结果
+    # visualization.plot_3d_scenario(results_p3['details'], "问题三：多弹药最优策略场景")
+    # visualization.plot_convergence(results_p3['log'], "问题三：优化收敛曲线")
     # visualization.save_results_to_excel(results_p3, "results/result1.xlsx")
 
     # --- 问题 4 (待实现) ---
