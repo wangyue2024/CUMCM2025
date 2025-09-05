@@ -162,10 +162,10 @@ class PhysicsModelWithCylinder:
         else:
             return self.config.REWARD_SHAPING_PENALTY_FACTOR * min_miss_distance
             
-    def calculate_shielding_metrics_detailed(self, uav_speed: float, uav_theta: float, launch_times: list, det_delays: list, time_step: float = None) -> tuple:
+    def calculate_shielding_metrics_p3(self, uav_speed: float, uav_theta: float, launch_times: list, det_delays: list, time_step: float = None) -> tuple:
         """
-        为问题三及以后设计的详细指标计算函数。
-        除了计算总遮蔽时间，还为每个烟幕事件计算其独立的最小未命中距离。
+        为问题三设计的核心计算函数。
+        除了返回总遮蔽时长，还返回每个烟幕事件的最小未命中距离。
         """
         sim_time_step = time_step if time_step is not None else self.config.SIM_TS_OPTIMIZATION
 
@@ -184,107 +184,102 @@ class PhysicsModelWithCylinder:
                 'p_det': p_detonation, 
                 't_det': t_detonation, 
                 't_end': t_end_effective,
-                'min_miss_distance': float('inf'), # 为每个烟幕初始化最小未命中距离
-                'contributed_to_shielding': False  # 标记是否贡献了遮蔽
+                'min_miss_distance': float('inf') # 初始化每个烟幕的最小未命中距离
             })
 
-        if not smoke_events: 
-            return 0.0, [float('inf')] * len(launch_times), {}
+        if not smoke_events: return 0.0, [], {}
 
         sim_start_time = min(event['t_det'] for event in smoke_events)
         sim_end_time = min(max(event['t_end'] for event in smoke_events), self.time_to_impact)
-      
-        if sim_end_time <= sim_start_time: 
-            return 0.0, [float('inf')] * len(launch_times), {}
-      
+        
+        if sim_end_time <= sim_start_time: return 0.0, [float('inf')]*len(smoke_events), {}
+        
         num_steps = int((sim_end_time - sim_start_time) / sim_time_step) + 1
         time_points = np.linspace(sim_start_time, sim_end_time, num_steps)
         shielded_time_slots = np.zeros(num_steps, dtype=bool)
 
         for i, t in enumerate(time_points):
             p_missile_t = self._get_missile_pos(t)
-            
-            # 计算每个烟幕的最小距离
-            for event in smoke_events:
-                if event['t_det'] <= t < event['t_end']:
-                    dt_since_det = t - event['t_det']
-                    p_smoke_center_t = event['p_det'] - np.array([0, 0, self.config.V_SMOKE_SINK * dt_since_det])
-                    
-                    # 计算此烟幕在此刻对所有采样点的最小距离
-                    for p_target_sample in self.target_sample_points:
-                        dist = self._distance_point_to_segment(p_smoke_center_t, p_missile_t, p_target_sample)
-                        event['min_miss_distance'] = min(event['min_miss_distance'], dist)
-            
-            # 判断总体是否遮蔽
             is_shielded_this_step = True
+            
             for p_target_sample in self.target_sample_points:
                 is_sample_point_shielded = False
-                contributing_smoke = None
                 
                 for event in smoke_events:
                     if event['t_det'] <= t < event['t_end']:
                         dt_since_det = t - event['t_det']
                         p_smoke_center_t = event['p_det'] - np.array([0, 0, self.config.V_SMOKE_SINK * dt_since_det])
                         dist = self._distance_point_to_segment(p_smoke_center_t, p_missile_t, p_target_sample)
+                        
+                        # 更新该烟幕事件在其生命周期内的最小未命中距离
+                        event['min_miss_distance'] = min(event['min_miss_distance'], dist)
+                        
                         if dist <= self.config.R_SMOKE:
                             is_sample_point_shielded = True
-                            contributing_smoke = event
-                            break
-                            
+                
                 if not is_sample_point_shielded:
                     is_shielded_this_step = False
                     break
-                elif contributing_smoke:
-                    contributing_smoke['contributed_to_shielding'] = True
             
             if is_shielded_this_step:
                 shielded_time_slots[i] = True
 
         total_shielding_time = np.sum(shielded_time_slots) * sim_time_step
-      
-        # 提取每个烟幕的最终最小未命中距离
-        individual_min_miss_distances = [event['min_miss_distance'] for event in smoke_events]
+        
+        # 提取每个烟幕的最小未命中距离
+        individual_miss_distances = [event['min_miss_distance'] for event in smoke_events]
 
-        details = {
-            "total_shielding_time": total_shielding_time, 
-            "smoke_events": smoke_events,
-            "individual_min_miss_distances": individual_min_miss_distances,
-            "contributed_to_shielding": [event['contributed_to_shielding'] for event in smoke_events]
-        }
-      
-        return total_shielding_time, individual_min_miss_distances, details
+        details = {"total_shielding_time": total_shielding_time, "smoke_events": smoke_events}
+        
+        return total_shielding_time, individual_miss_distances, details
 
-    def cost_function_q3_enhanced(self, x: np.ndarray) -> float:
+    # cost_function_q3 将被弃用，但我们保留它以作对比
+    def cost_function_q3(self, x: np.ndarray) -> float:
+        # ... (保持不变) ...
+        v_uav, theta_uav, t1, t2, t3, dt1, dt2, dt3 = x
+        if not (t2 >= t1 + self.config.MIN_LAUNCH_INTERVAL and t3 >= t2 + self.config.MIN_LAUNCH_INTERVAL):
+            return 10.0
+        shielding_time, _, _ = self.calculate_shielding_metrics(v_uav, theta_uav, [t1, t2, t3], [dt1, dt2, dt3])
+        if shielding_time > 0: return -shielding_time
+        else: return self.config.REWARD_SHAPING_PENALTY_FACTOR * 1000 # 随便给个值
+
+    # ==========================================================================
+    # 新增: 为问题三设计的增强版成本函数
+    # ==========================================================================
+    def cost_function_q3_enhanced(self, x: np.ndarray) -> tuple:
         """
-        为问题3设计的增强版成本函数，为每个烟幕弹提供梯度引导。
+        为问题3封装的增强版成本函数。
+        返回 (成本, 总遮蔽时长) 以便调试。
         """
-        # 解包决策变量
-        uav_speed, uav_theta = x[0], x[1]
-        num_smokes = int((len(x) - 2) / 2)  # 计算烟幕弹数量
+        # 1. 解包和约束检查
+        v_uav, theta_uav, t1, t2, t3, dt1, dt2, dt3 = x
         
-        # 提取投放时间和起爆延迟
-        launch_times = [x[2 + i*2] for i in range(num_smokes)]
-        det_delays = [x[3 + i*2] for i in range(num_smokes)]
-        
-        # 检查约束条件：投放时间必须递增
-        for i in range(1, num_smokes):
-            if launch_times[i] <= launch_times[i-1]:
-                return 10.0  # 违反约束，返回惩罚值
-        
-        # 调用新的详细计算函数
-        shielding_time, individual_distances, details = self.calculate_shielding_metrics_detailed(
-            uav_speed, uav_theta, launch_times, det_delays
+
+        # 2. 调用新的计算函数
+        launch_times = [t1, t2, t3]
+        det_delays = [dt1, dt2, dt3]
+        total_shielding_time, individual_miss_distances, _ = self.calculate_shielding_metrics_p3(
+            v_uav, theta_uav, launch_times, det_delays
         )
+
+        # 3. 计算增强的成本值
+        # 主要目标：最大化总遮蔽时间
+        primary_cost = -total_shielding_time
         
-        # 主要目标：最大化遮蔽时间
-        cost = -shielding_time
-        
-        # 辅助目标：对每个烟幕的未命中距离进行惩罚
-        # 只有当烟幕的最小距离大于烟幕半径时（即它从未成功遮蔽过任何点），才施加惩罚
-        contributed = details["contributed_to_shielding"]
-        for i, dist in enumerate(individual_distances):
-            if not contributed[i] and dist > self.config.R_SMOKE:
-                # 对未贡献遮蔽的烟幕施加距离惩罚，引导它们向有效位置移动
-                cost += 0.0001 * (dist - self.config.R_SMOKE)
-        
-        return cost
+        # 辅助目标：最小化所有弹药的未命中距离之和
+        # 我们只惩罚那些完全没有产生遮蔽的弹药（miss_distance > R_SMOKE）
+        # 这样可以避免在已经很好的解上画蛇添足
+        secondary_cost = 0.0
+        for dist in individual_miss_distances:
+            if dist > self.config.R_SMOKE:
+                # 将距离减去半径，我们只关心超出半径的部分
+                secondary_cost += (dist - self.config.R_SMOKE)
+
+        # 组合成本：主成本 + 一个加权的辅助成本
+        # 权重因子非常重要，要确保辅助目标不会压倒主目标
+        # 这里的权重因子需要调试，0.0001是一个不错的起点
+        penalty_factor = 0.01
+        total_cost = primary_cost + penalty_factor * secondary_cost
+        if not (t2 >= t1 + self.config.MIN_LAUNCH_INTERVAL and t3 >= t2 + self.config.MIN_LAUNCH_INTERVAL):
+            total_cost=total_cost+10
+        return total_cost, total_shielding_time

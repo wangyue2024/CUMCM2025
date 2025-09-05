@@ -46,7 +46,7 @@ class Config:
     # 用于问题一等需要精确计算的场景
     SIM_TS_ACCURACY = 0.001
     # 用于优化过程，适当增大步长以提高速度
-    SIM_TS_OPTIMIZATION = 0.01
+    SIM_TS_OPTIMIZATION = 0.1
 
     # --- 奖励塑造惩罚系数 ---
     # 当遮蔽时间为0时，cost = PENALTY_FACTOR * min_miss_distance
