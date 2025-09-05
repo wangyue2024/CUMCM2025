@@ -124,8 +124,125 @@ def solve_problem_2():
 # --- 为后续问题预留的占位函数 ---
 
 def solve_problem_3():
-    print("\n--- 问题 3 求解器 (待实现) ---")
-    return {"problem_id": 3}
+    """
+    问题三：单无人机多弹药策略优化。
+    使用增强版成本函数和CMA-ES算法寻找最优策略，确保所有烟幕弹都参与优化。
+    """
+    print("\n--- 开始求解问题 3 (增强型 CMA-ES 优化) ---")
+    cfg = Config()
+    model = PhysicsModelWithCylinder(missile_id='M1', uav_id='FY1', config_obj=cfg)
+    
+    # 决策变量: [速度, 方向角, 投放时间1, 起爆延迟1, 投放时间2, 起爆延迟2, ...]
+    # 这里我们设置为3枚烟幕弹
+    num_smokes = 3
+    
+    # 初始猜测值
+    initial_guess = [105, np.pi/4]  # 速度和方向角
+    for i in range(num_smokes):
+        # 均匀分布的投放时间和相同的起爆延迟
+        launch_time = 2.0 + i * 3.0  # 从2秒开始，每3秒投放一枚
+        det_delay = 5.0
+        initial_guess.extend([launch_time, det_delay])
+    
+    sigma0 = 5.0
+    
+    # 设置边界
+    lower_bounds = [cfg.V_UAV_MIN, 0]  # 速度和方向角的下界
+    upper_bounds = [cfg.V_UAV_MAX, 2*np.pi]  # 速度和方向角的上界
+    
+    for i in range(num_smokes):
+        # 投放时间的下界为0，上界为导弹预计撞击时间
+        # 起爆延迟的下界为0，上界为20秒
+        lower_bounds.extend([0, 0.0])
+        upper_bounds.extend([model.time_to_impact, 20.0])
+    
+    bounds = [lower_bounds, upper_bounds]
+    
+    # 优化器选项
+    options = {
+        'bounds': bounds, 
+        'maxfevals': 3000, 
+        'seed': 1234,
+        'popsize': 20,     # 增加种群大小以提高探索能力
+        'tolx': 1e-4,      # 参数变化容差
+        'tolfun': 1e-4     # 函数值变化容差
+    }
+    
+    print(f"导弹预计撞击时间: {model.time_to_impact:.2f} s. 优化搜索已启动...")
+    print(f"优化{num_smokes}枚烟幕弹的投放策略")
+    
+    # 初始化CMA-ES策略对象
+    es = cma.CMAEvolutionStrategy(initial_guess, sigma0, options)
+
+    # 设置日志打印间隔和表头
+    log_interval = 10  # 每10代打印一次信息
+    print("\n--- 优化过程追踪 ---")
+    print(f"{'迭代':>3s} | {'评估次数':>4s} | {'当前最优成本':>6s} | {'对应遮蔽时长':>8s} | {'步长(Sigma)':>10s}")
+    print("-" * 70)
+
+    # 手动执行优化循环
+    while not es.stop():
+        # 从当前策略分布中获取新一代的解向量
+        solutions = es.ask()
+        
+        # 计算每个解的成本值（调用增强版物理模型）
+        costs = [model.cost_function_q3_enhanced(s) for s in solutions]
+        
+        # 将解和对应的成本值反馈给优化器，以更新策略分布
+        es.tell(solutions, costs)
+        
+        # 按设定的间隔打印调试信息
+        if es.countiter % log_interval == 0:
+            # 成本值是负的遮蔽时长，我们把它转为正的，方便观察
+            # 如果成本值为正（来自奖励塑造），说明遮蔽时间为0
+            current_best_time = -es.result.fbest if es.result.fbest < 0 else 0.0
+            print(f"{es.countiter:5d} | {es.countevals:8d} | {es.result.fbest:12.6f} | {current_best_time:13.4f}s | {es.sigma:12.6f}")
+
+    # 优化结束后，获取最终结果
+    best_solution = es.result.xbest
+    max_shielding_time = -es.result.fbest if es.result.fbest < 0 else 0.0
+    
+    # 使用最优解进行一次高精度仿真以获取最终的精确时间和细节
+    launch_times = [best_solution[2 + i*2] for i in range(num_smokes)]
+    det_delays = [best_solution[3 + i*2] for i in range(num_smokes)]
+    
+    # 使用增强版成本函数进行高精度验证
+    final_shielding_time, _, final_details = model.calculate_shielding_metrics(
+        best_solution[0], best_solution[1], launch_times, det_delays,
+        time_step=cfg.SIM_TS_ACCURACY
+    )
+    
+    # 获取详细的遮蔽指标，用于分析每个烟幕弹的贡献
+    _, min_miss_distances = model.calculate_shielding_metrics_detailed(
+        best_solution, time_step=cfg.SIM_TS_ACCURACY
+    )
+    
+    print("-" * 70)
+    print("优化完成！")
+    print(f"最优策略: 速度={best_solution[0]:.2f} m/s, 方向={np.rad2deg(best_solution[1]):.2f}°")
+    for i in range(num_smokes):
+        print(f"烟幕弹 {i+1}: 投放时间={launch_times[i]:.2f}s, 延迟={det_delays[i]:.2f}s")
+    print(f"优化过程找到的最大遮蔽时长 (基于优化步长): {max_shielding_time:.4f} s")
+    print(f"最终精确验证的最大遮蔽时长 (基于高精度步长): {final_shielding_time:.4f} s")
+    
+    # 分析每个烟幕弹的贡献
+    print("\n各烟幕弹贡献分析:")
+    for i, dist in enumerate(min_miss_distances):
+        if dist <= model.config.smoke_radius:
+            print(f"烟幕弹 {i+1} 有效贡献遮蔽效果，最小未命中距离: {dist:.2f}m")
+        else:
+            print(f"烟幕弹 {i+1} 未有效贡献遮蔽效果，最小未命中距离: {dist:.2f}m > {model.config.smoke_radius:.2f}m")
+
+    results = {
+        "problem_id": 3,
+        "best_solution_vector": best_solution,
+        "max_shielding_time": final_shielding_time, # 返回精确值
+        "details": final_details,
+        "min_miss_distances": min_miss_distances,
+        "smoke_contributions": [dist <= model.config.smoke_radius for dist in min_miss_distances],
+        "log": es  # 保存优化过程对象，用于绘制收敛曲线
+    }
+    return results
 
 def solve_problem_4():
     print("\n--- 问题 4 求解器 (待实现) ---")
