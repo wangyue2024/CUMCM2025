@@ -28,7 +28,7 @@ if __name__ == '__main__':
     # Scenario parameters from Problem 1
     uav_speed = 120.0
     t_launch = 1.5  # s
-    dt_det = 3.6    # s
+    dt_det = 4.5    # s
     t_detonation = t_launch + dt_det
 
     # --- 2. Calculate Positions at the Moment of Detonation (t = 5.1s) ---
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     plt.rcParams['axes.unicode_minus'] = False
     
     # !!! 将字体大小设置放在这里，并且可以尝试更大的值 !!!
-    FONT_SIZE = 15 # 调大这个值
+    FONT_SIZE = 12 # 调大这个值
     plt.rcParams.update({'font.size': FONT_SIZE}) 
 
     fig = plt.figure(figsize=(16, 12))
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     ax.set_xlabel('X 轴 (米)', fontsize=FONT_SIZE) # 单独设置轴标签字体
     ax.set_ylabel('Y 轴 (米)', fontsize=FONT_SIZE) # 单独设置轴标签字体
     ax.set_zlabel('Z 轴 (米)', fontsize=FONT_SIZE) # 单独设置轴标签字体
-    ax.set_title(f'问题一 (t={t_detonation:.1f}s 爆炸瞬间)', fontsize=FONT_SIZE+4) # 单独设置标题字体
+    ax.set_title(f'问题一 (t={t_detonation:.1f}s)', fontsize=FONT_SIZE+4) # 单独设置标题字体
     
     # 设置刻度标签字体
     ax.tick_params(axis='x', labelsize=FONT_SIZE * 0.8) # 刻度标签可以稍微小一点
