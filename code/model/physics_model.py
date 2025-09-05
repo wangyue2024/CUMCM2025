@@ -1,96 +1,172 @@
 # models/physics_model.py
+# Implements the core physics simulation and shielding calculation.
+
 import numpy as np
-from config import G, UAV_INITIAL_POS
+import config  # Import constants from our config file
 
-
-
-def calculate_shielding_time_placeholder(decision_variables, uav_id='FY1', num_bombs=1):
+class PhysicsModel:
     """
-    这是一个占位符/伪实现的核心物理模型。
-    它结构完整，返回优化和可视化所需的所有数据。
-    请将此函数内部的计算逻辑替换为您真实的物理模型。
-
-    Args:
-        decision_variables (np.ndarray): 决策变量向量。
-        uav_id (str): 无人机编号, e.g., 'FY1'.
-        num_bombs (int): 该无人机投放的干扰弹数量。
-
-    Returns:
-        tuple: (total_shielding_time, details_dict)
-            - total_shielding_time (float): 总有效遮蔽时长。
-            - details_dict (dict): 包含所有中间结果的字典，用于后续分析和可视化。
+    A class to encapsulate the physics simulation for a single missile-UAV interaction scenario.
     """
-    # --- 1. 解包决策变量 ---
-    v_u = decision_variables[0]
-    theta = decision_variables[1]
-    t_launches = decision_variables[2 : 2 + num_bombs]
-    delta_t_dets = decision_variables[2 + num_bombs : 2 + 2 * num_bombs]
-
-    # --- 2. 模拟计算 (这里是伪代码，需要被真实模型替换) ---
-    # 这是一个简单的示例目标函数，让最优解趋向于 v_u=100, theta=pi/2
-    # 真实场景中，这里是你最复杂的模拟计算
-    score = 0
-    for t in t_launches:
-        score += np.sin(t/5) # 模拟投放时间的影响
-    total_shielding_time = 15 - (v_u - 105)**2 * 0.005 - (theta - np.pi/2)**2 * 2 + score
-
-    # --- 3. 收集详细信息用于可视化 ---
-    # 即使是占位符，也要生成结构正确的details_dict
-    p_uav_initial = UAV_INITIAL_POS[uav_id]
-    v_uav_vec = np.array([v_u * np.cos(theta), v_u * np.sin(theta), 0])
-    
-    launch_points = []
-    detonation_points = []
-    
-    for i in range(num_bombs):
-        t_launch = t_launches[i]
-        dt_det = delta_t_dets[i]
+    def __init__(self, missile_id, uav_id):
+        """
+        Initializes the model with specific missile and UAV.
+        """
+        self.p_missile_0 = config.MISSILE_INITIAL_POS[missile_id]
+        self.p_uav_0 = config.UAV_INITIAL_POS[uav_id]
         
-        # 计算投放点
-        p_launch = p_uav_initial + v_uav_vec * t_launch
-        launch_points.append(p_launch.tolist())
+        # Pre-calculate missile trajectory parameters
+        direction_vec_m = config.P_FALSE_TARGET - self.p_missile_0
+        self.u_missile = direction_vec_m / np.linalg.norm(direction_vec_m)
+        self.v_vec_missile = config.V_MISSILE * self.u_missile
         
-        # 模拟平抛计算起爆点
-        p_det_x = p_launch[0] + v_uav_vec[0] * dt_det
-        p_det_y = p_launch[1] + v_uav_vec[1] * dt_det
-        p_det_z = p_launch[2] - 0.5 * G * dt_det**2
-        detonation_points.append([p_det_x, p_det_y, p_det_z])
+        # Calculate time to impact for simulation boundary
+        dist_to_target = np.linalg.norm(config.P_FALSE_TARGET - self.p_missile_0)
+        self.time_to_impact = dist_to_target / config.V_MISSILE
 
-    details = {
-        'uav_id': uav_id,
-        'uav_velocity': v_u,
-        'uav_direction_rad': theta,
-        'uav_direction_deg': np.rad2deg(theta),
-        'launch_times': t_launches.tolist(),
-        'detonation_delays': delta_t_dets.tolist(),
-        'launch_points': launch_points,
-        'detonation_points': detonation_points,
-        'total_shielding_time': total_shielding_time,
-        # 真实模型中还应包含每个烟幕的遮蔽时间段，用于绘制甘特图
-        'shielding_intervals': [[t, t + 5] for t in t_launches] # 伪数据
-    }
-    
-    return total_shielding_time, details
+    def _get_missile_pos(self, t):
+        """Calculates missile position at time t."""
+        return self.p_missile_0 + self.v_vec_missile * t
 
+    @staticmethod
+    def _distance_point_to_segment(point, seg_start, seg_end):
+        """Calculates the minimum distance from a point to a line segment."""
+        if np.array_equal(seg_start, seg_end):
+            return np.linalg.norm(point - seg_start)
+        
+        vec_seg = seg_end - seg_start
+        vec_point = point - seg_start
+        
+        dot_product = np.dot(vec_point, vec_seg)
+        seg_len_sq = np.dot(vec_seg, vec_seg)
+        
+        c = dot_product / seg_len_sq
+        
+        if c < 0:
+            return np.linalg.norm(point - seg_start)
+        if c > 1:
+            return np.linalg.norm(point - seg_end)
+        
+        projection = seg_start + c * vec_seg
+        return np.linalg.norm(point - projection)
 
-def cost_function3(x):
-    global best_details_so_far3
-    # x: [v_u, theta, t_l1, t_l2, t_l3, dt_d1, dt_d2, dt_d3]
-    
-    # 约束处理：投放时间间隔 >= 1s
-    t_launches = x[2:5]
-    if not (t_launches[0] + 1.0 <= t_launches[1] and t_launches[1] + 1.0 <= t_launches[2]):
-        return 1e9  # 返回一个巨大的惩罚值
+    def calculate_shielding_time(self, uav_speed, uav_theta, launch_times, det_delays):
+        """
+        The main cost function. Calculates total shielding time for a given strategy.
+        
+        Args:
+            uav_speed (float): Speed of the UAV (m/s).
+            uav_theta (float): Flight direction angle of the UAV in radians (0 is positive x-axis).
+            launch_times (list or np.array): A list of launch times for each grenade.
+            det_delays (list or np.array): A list of detonation delays for each grenade.
+            
+        Returns:
+            tuple: (total_shielding_time, details_dict)
+        """
+        # --- 1. Calculate UAV and Smoke Trajectories ---
+        v_vec_uav = np.array([uav_speed * np.cos(uav_theta), uav_speed * np.sin(uav_theta), 0])
+        
+        smoke_events = []
+        for t_launch, dt_det in zip(launch_times, det_delays):
+            p_launch = self.p_uav_0 + v_vec_uav * t_launch
+            
+            # Projectile motion calculation
+            dx = v_vec_uav[0] * dt_det
+            dy = v_vec_uav[1] * dt_det
+            dz = -0.5 * config.G * dt_det**2
+            
+            p_detonation = p_launch + np.array([dx, dy, dz])
+            
+            t_detonation = t_launch + dt_det
+            t_end_effective = t_detonation + config.T_SMOKE_EFFECTIVE
+            
+            smoke_events.append({
+                'p_det': p_detonation,
+                't_det': t_detonation,
+                't_end': t_end_effective,
+                'p_launch': p_launch # For visualization
+            })
+            
+        # --- 2. Simulate and Check for Shielding ---
+        total_shielding_time = 0
+        
+        # Determine the simulation time range based on the first and last smoke events
+        if not smoke_events:
+            return 0.0, {}
+        
+        sim_start_time = min(event['t_det'] for event in smoke_events)
+        sim_end_time = min(max(event['t_end'] for event in smoke_events), self.time_to_impact)
 
-    # 调用物理模型
-    shielding_time, details = calculate_shielding_time_placeholder(x, uav_id, num_bombs)
-    
-    # CMA-ES默认最小化，所以返回负值
-    cost = -shielding_time
-    
-    
-    # 在优化过程中记录遇到的最好结果的详情
-    if not best_details_so_far3 or cost < -best_details_so_far3.get('cost', -np.inf):
-            best_details_so_far3.update(details)
+        # Create a boolean array to mark shielded time slots to avoid double counting
+        num_steps = int((sim_end_time - sim_start_time) / config.SIMULATION_TIME_STEP) + 1
+        shielded_time_slots = np.zeros(num_steps, dtype=bool)
+        
+        time_points = np.linspace(sim_start_time, sim_end_time, num_steps)
 
-    return cost    
+        for i, t in enumerate(time_points):
+            if shielded_time_slots[i]:
+                continue # Already shielded at this time step
+
+            p_missile_t = self._get_missile_pos(t)
+            
+            for event in smoke_events:
+                if event['t_det'] <= t < event['t_end']:
+                    # Calculate current smoke cloud center
+                    dt_since_det = t - event['t_det']
+                    p_smoke_center_t = event['p_det'] - np.array([0, 0, config.V_SMOKE_SINK * dt_since_det])
+                    
+                    # Check shielding condition
+                    distance = self._distance_point_to_segment(
+                        p_smoke_center_t, p_missile_t, config.P_TRUE_TARGET
+                    )
+                    
+                    if distance <= config.R_SMOKE:
+                        shielded_time_slots[i] = True
+                        break # Move to the next time step once shielded
+
+        total_shielding_time = np.sum(shielded_time_slots) * config.SIMULATION_TIME_STEP
+
+        # --- 3. Prepare Detailed Results for Analysis ---
+        details = {
+            "uav_speed": uav_speed,
+            "uav_theta_deg": np.rad2deg(uav_theta),
+            "total_shielding_time": total_shielding_time,
+            "smoke_events": smoke_events,
+            "missile_trajectory": [self._get_missile_pos(t) for t in time_points],
+            "uav_trajectory": [self.p_uav_0 + v_vec_uav * t for t in time_points]
+        }
+        
+        return total_shielding_time, details
+
+# --- Example Usage for Problem 1 ---
+if __name__ == '__main__':
+    print("--- Running Simulation for Problem 1 ---")
+    
+    # Initialize the model for M1 and FY1
+    model_q1 = PhysicsModel(missile_id='M1', uav_id='FY1')
+    
+    # Define the fixed strategy from Problem 1
+    uav_speed_q1 = 120.0
+    # Direction towards false target from FY1's initial position
+    direction_vec_q1 = config.P_FALSE_TARGET - config.UAV_INITIAL_POS['FY1']
+    uav_theta_q1 = np.arctan2(direction_vec_q1[1], direction_vec_q1[0])
+    
+    launch_times_q1 = [1.5]
+    det_delays_q1 = [3.6]
+    
+    # Calculate the result
+    shielding_time, details = model_q1.calculate_shielding_time(
+        uav_speed_q1, uav_theta_q1, launch_times_q1, det_delays_q1
+    )
+    
+    print(f"UAV Speed: {uav_speed_q1} m/s")
+    print(f"UAV Direction: {np.rad2deg(uav_theta_q1):.2f} degrees")
+    print(f"Launch Time: {launch_times_q1[0]} s")
+    print(f"Detonation Delay: {det_delays_q1[0]} s")
+    print("\n" + "="*30)
+    print(f"Calculated Effective Shielding Time: {shielding_time:.4f} s")
+    print("="*30)
+    
+    # You can now access detailed info for plotting:
+    # print(details['smoke_events'][0]['p_launch'])
+    # print(details['smoke_events'][0]['p_det'])
