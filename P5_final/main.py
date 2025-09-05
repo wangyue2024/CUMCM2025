@@ -40,13 +40,10 @@ def main():
     # visualization.plot_convergence(results_p3['log'], "问题三：优化收敛曲线")
     # visualization.save_results_to_excel(results_p3, "results/result1.xlsx")
 
-    # --- 问题 4 ---
-    start_time = time.time()
-    results_p4 = problem_solvers.solve_problem_4()
-    end_time = time.time()
-    print(f"问题 4 求解耗时: {end_time - start_time:.2f} 秒")
-    # visualization.plot_3d_scenario(results_p4['details'], "问题四：多无人机协同策略")
+    # --- 问题 4 (待实现) ---
+    # results_p4 = problem_solvers.solve_problem_4()
     # visualization.save_results_to_excel(results_p4, "results/result2.xlsx")
+
     # --- 问题 5 (待实现) ---
     # results_p5 = problem_solvers.solve_problem_5()
     # visualization.save_results_to_excel(results_p5, "results/result3.xlsx")
