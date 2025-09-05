@@ -10,7 +10,7 @@ class Config:
     P_FALSE_TARGET = np.array([0.0, 0.0, 0.0])
     # 为解析解简化，我们将真目标视为一个点（圆柱中心）
     # 这是一个必要的、合理的简化，以启用强大的解析方法
-    P_TRUE_TARGET = np.array([0.0, 200.0, 5.0]) # 圆柱中心点 (z=height/2)
+    P_TRUE_TARGET = np.array([0.0, 200.0, 0.0]) 
 
     # --- 导弹信息 ---
     V_MISSILE = 300.0  # 导弹速度 (m/s)
@@ -39,4 +39,4 @@ class Config:
 
     # --- 优化控制参数 ---
     # 新增：用于奖励塑造的惩罚因子，引导未产生遮蔽的烟幕
-    REWARD_SHAPING_PENALTY_FACTOR = 1e-7
+    REWARD_SHAPING_PENALTY_FACTOR = 1e-2

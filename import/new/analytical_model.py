@@ -1,4 +1,4 @@
-# analytical_model.py
+# analytical_model.py (V2 - Robust and Correct Version)
 
 import numpy as np
 from typing import List, Tuple, Dict
@@ -6,8 +6,8 @@ from config import Config
 
 class PhysicsModelAnalytical:
     """
-    完全基于解析法构建的物理模型。
-    该模型负责计算精确的遮蔽时间，并为优化器提供高性能的代价函数。
+    完全基于解析法构建的物理模型 (V2 - 鲁棒版)。
+    该版本采用了更稳健的区间求解算法，并修正了模型假设。
     """
     def __init__(self, missile_id: str, uav_id: str):
         self.config = Config()
@@ -22,19 +22,12 @@ class PhysicsModelAnalytical:
         dist_to_target = np.linalg.norm(self.config.P_FALSE_TARGET - self.p_missile_0)
         self.time_to_impact = dist_to_target / self.config.V_MISSILE
 
-    # ===================================================================
-    # 核心解析计算模块 (私有方法)
-    # ===================================================================
-    
     def _get_all_polynomial_coefficients(self, p_det: np.ndarray, t_det: float) -> Dict[str, np.ndarray]:
-        """一次性计算单个烟幕所需的所有多项式系数。"""
         m0, vm, p_target = self.p_missile_0, self.v_vec_missile, self.p_target
         v_sink, r_smoke = self.config.V_SMOKE_SINK, self.config.R_SMOKE
         
-        L0 = p_target - m0
-        L1 = -vm
-        S0 = p_det - v_sink * t_det - m0
-        S1 = v_sink - vm
+        L0 = p_target - m0; L1 = -vm
+        S0 = p_det - v_sink * t_det - m0; S1 = v_sink - vm
 
         d2 = np.dot(L1, L1); d1 = 2 * np.dot(L0, L1); d0 = np.dot(L0, L0)
         D_coeffs = np.array([d2, d1, d0])
@@ -56,45 +49,7 @@ class PhysicsModelAnalytical:
         
         return {'P4': P4_coeffs, 'P2_A': P2_A_coeffs, 'N': N_coeffs}
 
-    def _solve_inequality_for_intervals(self, coeffs: np.ndarray, interval: Tuple[float, float]) -> List[Tuple[float, float]]:
-        """求解多项式 P(t) <= 0，返回满足条件的区间列表。"""
-        t_start, t_end = interval
-        if t_start >= t_end: return []
-        if len(coeffs) == 1: return [(t_start, t_end)] if coeffs[0] <= 0 else []
-        
-        roots = np.roots(coeffs)
-        points = sorted(list(set([t_start, t_end] + [r.real for r in roots if np.isreal(r) and t_start < r.real < t_end])))
-        
-        intervals = []
-        for i in range(len(points) - 1):
-            p_start, p_end = points[i], points[i+1]
-            if np.polyval(coeffs, (p_start + p_end) / 2.0) <= 0:
-                intervals.append((p_start, p_end))
-        return intervals
-
-    def _calculate_single_smoke_intervals_robust(self, p_det: np.ndarray, t_det: float) -> List[Tuple[float, float]]:
-        """鲁棒地计算单个烟幕的遮蔽区间列表（处理Case1/2切换）。"""
-        T_start = t_det
-        T_end = t_det + self.config.T_SMOKE_EFFECTIVE
-        
-        coeffs = self._get_all_polynomial_coefficients(p_det, t_det)
-        N_coeffs = coeffs['N']
-        
-        critical_roots = np.roots(N_coeffs)
-        boundaries = sorted(list(set([T_start, T_end] + [r.real for r in critical_roots if np.isreal(r) and T_start < r.real < T_end])))
-        
-        shielded_intervals = []
-        for i in range(len(boundaries) - 1):
-            start, end = boundaries[i], boundaries[i+1]
-            t_mid = (start + end) / 2.0
-            
-            case_coeffs = coeffs['P4'] if np.polyval(N_coeffs, t_mid) >= 0 else coeffs['P2_A']
-            shielded_intervals.extend(self._solve_inequality_for_intervals(case_coeffs, (start, end)))
-            
-        return shielded_intervals
-
     def _get_min_poly_value(self, coeffs: np.ndarray, interval: Tuple[float, float]) -> float:
-        """计算多项式在区间内的最小值，用于奖励塑造。"""
         t_start, t_end = interval
         if len(coeffs) <= 1: return np.polyval(coeffs, t_start)
         
@@ -104,7 +59,6 @@ class PhysicsModelAnalytical:
 
     @staticmethod
     def _merge_intervals(intervals: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
-        """合并重叠区间。"""
         if not intervals: return []
         intervals.sort(key=lambda x: x[0])
         merged = [intervals[0]]
@@ -117,11 +71,52 @@ class PhysicsModelAnalytical:
         return merged
 
     # ===================================================================
-    # 面向求解器的代价函数接口
+    # 【关键函数】这就是 problem_solvers.py 需要调用的函数
     # ===================================================================
+    def calculate_shielding_metrics(self, p_det: np.ndarray, t_det: float) -> Dict:
+        T_start = t_det
+        T_end = t_det + self.config.T_SMOKE_EFFECTIVE
+        
+        coeffs = self._get_all_polynomial_coefficients(p_det, t_det)
+        N_coeffs, P4_coeffs, P2_A_coeffs = coeffs['N'], coeffs['P4'], coeffs['P2_A']
+
+        all_roots = []
+        for c in [N_coeffs, P4_coeffs, P2_A_coeffs]:
+            if len(c) > 1:
+                roots = np.roots(c)
+                all_roots.extend([r.real for r in roots if np.isreal(r)])
+        
+        points = sorted(list(set([T_start, T_end] + [r for r in all_roots if T_start < r < T_end])))
+
+        shielded_intervals = []
+        for i in range(len(points) - 1):
+            start, end = points[i], points[i+1]
+            t_mid = (start + end) / 2.0
+            
+            is_case1 = np.polyval(N_coeffs, t_mid) >= 0
+            
+            if is_case1:
+                if np.polyval(P4_coeffs, t_mid) <= 0:
+                    shielded_intervals.append((start, end))
+            else:
+                if np.polyval(P2_A_coeffs, t_mid) <= 0:
+                    shielded_intervals.append((start, end))
+        
+        merged_intervals = self._merge_intervals(shielded_intervals)
+        total_time = sum(e - s for s, e in merged_intervals)
+        
+        proxy_cost = 0.0
+        if total_time == 0:
+            min_p_val = self._get_min_poly_value(P4_coeffs, (T_start, T_end))
+            proxy_cost = max(0, min_p_val)
+
+        return {
+            "total_time": total_time,
+            "intervals": merged_intervals,
+            "proxy_cost": proxy_cost
+        }
 
     def cost_function_q2(self, x: np.ndarray) -> float:
-        """问题二的代价函数：单无人机，单弹药。"""
         uav_speed, uav_theta, t_launch, dt_det = x
         
         v_vec_uav = np.array([uav_speed * np.cos(uav_theta), uav_speed * np.sin(uav_theta), 0])
@@ -129,27 +124,21 @@ class PhysicsModelAnalytical:
         p_det = p_launch + v_vec_uav * dt_det + 0.5 * np.array([0, 0, -self.config.G]) * dt_det**2
         t_det = t_launch + dt_det
 
-        intervals = self._calculate_single_smoke_intervals_robust(p_det, t_det)
-        total_time = sum(end - start for start, end in intervals)
-
-        if total_time > 0:
-            return -total_time
+        metrics = self.calculate_shielding_metrics(p_det, t_det)
+        
+        if metrics["total_time"] > 0:
+            return -metrics["total_time"]
         else:
-            # 奖励塑造：如果没有遮蔽，则惩罚“离成功有多远”
-            coeffs = self._get_all_polynomial_coefficients(p_det, t_det)['P4']
-            min_p_val = self._get_min_poly_value(coeffs, (t_det, t_det + self.config.T_SMOKE_EFFECTIVE))
-            return self.config.REWARD_SHAPING_PENALTY_FACTOR * max(0, min_p_val)
+            return self.config.REWARD_SHAPING_PENALTY_FACTOR * metrics["proxy_cost"]
 
     def cost_function_q3(self, x: np.ndarray) -> float:
-        """问题三的代价函数：单无人机，三弹药，带约束和奖励塑造。"""
+        """问题三的代价函数：单无人机，三弹药。"""
         v_uav, theta_uav, t1, t2, t3, dt1, dt2, dt3 = x
         
-        # 1. 检查投放间隔约束
-        if not (t2 >= t1 + self.config.MIN_LAUNCH_INTERVAL and t3 >= t2 + self.config.MIN_LAUNCH_INTERVAL):
-            penalty = 100 * (max(0, t1 + self.config.MIN_LAUNCH_INTERVAL - t2) + max(0, t2 + self.config.MIN_LAUNCH_INTERVAL - t3))
-            return 100 + penalty # 返回一个大的惩罚值
-
-        # 2. 计算每个烟幕的遮蔽区间和代理成本
+        # 【关键修改】移除约束检查，因为它现在由外部的 CostFunctionWrapperQ3 保证
+        # if not (t2 >= t1 + self.config.MIN_LAUNCH_INTERVAL and ...):
+        #     ...
+        
         v_vec_uav = np.array([v_uav * np.cos(theta_uav), v_uav * np.sin(theta_uav), 0])
         launch_times = [t1, t2, t3]
         det_delays = [dt1, dt2, dt3]
@@ -162,18 +151,11 @@ class PhysicsModelAnalytical:
             p_det = p_launch + v_vec_uav * dt_det + 0.5 * np.array([0, 0, -self.config.G]) * dt_det**2
             t_det = t_launch + dt_det
             
-            intervals = self._calculate_single_smoke_intervals_robust(p_det, t_det)
-            all_intervals.extend(intervals)
-            
-            # 奖励塑造：为每个未产生遮蔽的烟幕计算惩罚
-            if not intervals:
-                coeffs = self._get_all_polynomial_coefficients(p_det, t_det)['P4']
-                min_p_val = self._get_min_poly_value(coeffs, (t_det, t_det + self.config.T_SMOKE_EFFECTIVE))
-                total_proxy_penalty += max(0, min_p_val)
+            metrics = self.calculate_shielding_metrics(p_det, t_det)
+            all_intervals.extend(metrics["intervals"])
+            total_proxy_penalty += metrics["proxy_cost"]
 
-        # 3. 合并区间并计算总成本
         merged = self._merge_intervals(all_intervals)
         total_time = sum(end - start for start, end in merged)
         
-        final_cost = -total_time + self.config.REWARD_SHAPING_PENALTY_FACTOR * total_proxy_penalty
-        return final_cost
+        return -total_time + self.config.REWARD_SHAPING_PENALTY_FACTOR * total_proxy_penalty
