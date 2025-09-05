@@ -86,14 +86,14 @@ for name, pos in missiles.items():
 for name, pos in uavs.items():
     ax.plot([pos[0], false_target_pos[0]], 
             [pos[1], false_target_pos[1]], 
-            [pos[2], false_target_pos[2]], 
+            [pos[2], pos[2]], 
             'r--')
 
 # --- 5. 图表美化 ---
 ax.set_xlabel('X 轴 (米)')
 ax.set_ylabel('Y 轴 (米)')
 ax.set_zlabel('Z 轴 (米)')
-ax.set_title('基本情况示意图', fontsize=16)
+ax.set_title('无人机和导弹飞行轨迹示意图', fontsize=16)
 
 # 设置坐标轴范围以获得更好的视图
 ax.set_xlim([0, 22000])
@@ -102,6 +102,14 @@ ax.set_zlim([0, 2500])
 
 # 设置初始视角
 ax.view_init(elev=25, azim=-75)
+
+# plt.rcParams['axes.labelsize'] = 30  # 轴标签字体大小
+# plt.rcParams['xtick.labelsize'] = 20 # X轴刻度标签字体大小
+# plt.rcParams['ytick.labelsize'] = 20 # Y轴刻度标签字体大小
+# plt.rcParams['legend.fontsize'] = 12 # 图例字体大小
+# plt.rcParams['figure.titlesize'] = 20 # 图形总标题字体大小
+
+plt.rcParams.update({'font.size': 15}) # 设置所有字体为50号
 
 # 添加图例
 ax.legend(handles=legend_elements, loc='upper left')

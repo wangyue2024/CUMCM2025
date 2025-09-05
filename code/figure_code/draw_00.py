@@ -83,7 +83,7 @@ for name, pos in uavs.items():
     end_point = false_target_pos - direction_vector * 50
     ax.plot([start_point[0], end_point[0]], 
             [start_point[1], end_point[1]], 
-            [start_point[2], end_point[2]], 
+            [start_point[2], start_point[2]], 
             'r--', lw=1.5)
     # 在航向线的起点标注来源
     ax.text(start_point[0], start_point[1], start_point[2], f'来自 {name}', color='red')
@@ -93,7 +93,7 @@ for name, pos in uavs.items():
 ax.set_xlabel('X 轴 (米)')
 ax.set_ylabel('Y 轴 (米)')
 ax.set_zlabel('Z 轴 (米)')
-ax.set_title('目标区域近景态势图', fontsize=16)
+ax.set_title('目标区域附近导弹和无人机飞行轨迹示意图', fontsize=16)
 
 # 设置新的、聚焦于目标区域的坐标轴范围
 ax.set_xlim([-500, 500])
@@ -102,6 +102,7 @@ ax.set_zlim([0, 500])
 
 # 设置合适的视角
 ax.view_init(elev=30, azim=45)
+plt.rcParams.update({'font.size': 20}) # 设置所有字体为50号
 
 # 创建图例
 from matplotlib.lines import Line2D
@@ -114,6 +115,12 @@ legend_elements = [
     Line2D([0], [0], linestyle='--', color='r', lw=2, label='无人机接近方向')
 ]
 ax.legend(handles=legend_elements, loc='upper right')
+
+# plt.rcParams['axes.labelsize'] = 30  # 轴标签字体大小
+# plt.rcParams['xtick.labelsize'] = 20 # X轴刻度标签字体大小
+# plt.rcParams['ytick.labelsize'] = 20 # Y轴刻度标签字体大小
+# plt.rcParams['legend.fontsize'] = 50 # 图例字体大小
+# plt.rcParams['figure.titlesize'] = 20 # 图形总标题字体大小
 
 # 显示图形
 plt.tight_layout()
