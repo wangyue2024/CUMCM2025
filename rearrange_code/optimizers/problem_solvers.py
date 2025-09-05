@@ -130,8 +130,8 @@ def solve_problem_3():
     cfg = Config()
     model = PhysicsModelWithCylinder(missile_id='M1', uav_id='FY1', config_obj=cfg)
     
-    initial_guess = [100, np.pi/2, 0.0, 3.0, 6.0, 5.0, 5.0, 5.0]
-    sigma0 = 5.0
+    initial_guess = [100, np.pi, 0.0, 1.1, 2.2, 0.0, 1.0, 1.0]
+    sigma0 = 200.0
     
     bounds = [
         [cfg.V_UAV_MIN, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0],
